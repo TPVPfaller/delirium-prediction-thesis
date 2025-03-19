@@ -1,10 +1,10 @@
 # Prediction of ICU Delirium using Machine Learning Models
 
- The dataset consists of 18,270 ICU admissions from the eICU Collaborative Research database 
+ The dataset consists of 18,270 ICU admissions from the eICU Collaborative Research Database 
  (https://www.nature.com/articles/sdata2018178).
 
 ## EDA.py
-Exploratory data analysis for summarizing characteristics of the dataset by generating plots and tables.
+Exploratory data analysis is used to summarize the dataset's characteristics by generating plots and tables.
 
 Implemented methods:
 - Spearman and Pearson correlation returning the top correlations of the dataset.
@@ -18,9 +18,9 @@ Implemented methods:
   - two numerical: scatter plot
 
 ## models.py
-Implementations for Logistic regression, CatBoost, and FT-Transformer.
+Implementations for Logistic Regression, CatBoost, and FT-Transformer.
 
-- hpo_cv(X, y, model, param_space, folds=5, n_trials=50): Performs Optuna hyperparamter optimization 
-with the specified hyperparameter space using stratified cross validation. Returns the best parameters after n_trials.
+- hpo_cv(X, y, model, param_space, folds=5, n_trials=50): Performs Optuna hyperparameter optimization 
+with the specified hyperparameter space using stratified cross-validation. Returns the best parameters after n_trials.
 - train_and_evaluate(train_and_evaluate(X_train, y_train, X_test, y_test, clf, parameters, name):
-  - 
+  - Uses bootstrapping on the test prediction
