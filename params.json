@@ -1,0 +1,122 @@
+{
+  "ft_space": {
+    "embedding_dim": [16, 256],
+    "encoder_depth": [4, 10],
+    "heads": [6, 12],
+    "attn_dropout": [0.1, 0.4],
+    "ff_dropout": [0.1, 0.4],
+    "transformer_depth": [4, 10],
+    "learning_rate": [0.00001, 0.001],
+    "weight_decay": [0.000001, 0.0001]
+  },
+  "ft_bal_params": {
+    "embedding_dim": 129,
+    "encoder_depth": 8,
+    "heads": 12,
+    "attn_dropout": 0.10643661740462781,
+    "ff_dropout": 0.27226748919100047,
+    "transformer_depth": 10,
+    "learning_rate": 0.00022053183640516512,
+    "weight_decay": 6.109290242505328e-06
+  },
+  "fs_ft_bal_params": {
+    "embedding_dim": 237,
+    "encoder_depth": 4,
+    "heads": 8,
+    "attn_dropout": 0.2716789196095109,
+    "ff_dropout": 0.1893933571623152,
+    "transformer_depth": 8,
+    "learning_rate": 0.00014268177239945296,
+    "weight_decay": 6.719761258007639e-05
+  },
+  "cb_space": {
+    "n_estimators": [1000, 3000],
+    "depth": [4, 10],
+    "learning_rate": [0.0001, 0.1, "log"],
+    "l2_leaf_reg": [0.001, 50, "log"],
+    "random_strength": [0.001, 10, "log"],
+    "bootstrap_type": ["Bayesian"],
+    "bagging_temperature": [0.0, 10.0],
+    "od_type": ["Iter"],
+    "od_wait": [15, 40]
+  },
+  "cb_bal_params": {
+    "n_estimators": 2620,
+    "depth": 10,
+    "learning_rate": 0.004557347027343918,
+    "l2_leaf_reg": 30.62247951340981,
+    "random_strength": 3.7585389318145745,
+    "bootstrap_type": "Bayesian",
+    "bagging_temperature": 0.6142376397658783,
+    "od_type": "Iter",
+    "od_wait": 39
+  },
+  "cb_notbal_params": {
+    "n_estimators": 2171,
+    "depth": 9,
+    "learning_rate": 0.006284686285776335,
+    "l2_leaf_reg": 9.489683160119785,
+    "random_strength": 3.1377320290659183,
+    "bootstrap_type": "Bayesian",
+    "bagging_temperature": 0.37698211898544514,
+    "od_type": "Iter",
+    "od_wait": 35
+  },
+  "fs_cb_bal_params": {
+    "n_estimators": 2365,
+    "depth": 4,
+    "learning_rate": 0.01414040143276418,
+    "l2_leaf_reg": 34.919703896881316,
+    "random_strength": 2.210463995237055,
+    "bootstrap_type": "Bayesian",
+    "bagging_temperature": 1.5029045776371666,
+    "od_type": "Iter",
+    "od_wait": 34
+  },
+  "fs_cb_notbal_params": {
+    "n_estimators": 1379,
+    "depth": 7,
+    "learning_rate": 0.0199296538534276,
+    "l2_leaf_reg": 40.36453340481871,
+    "random_strength": 9.760197744789428,
+    "bootstrap_type": "Bayesian",
+    "bagging_temperature": 0.8964603172069614,
+    "od_type": "Iter",
+    "od_wait": 21
+  },
+  "LR_space": {
+    "C": [0.1, 5, "log"],
+    "solver": ["liblinear", "saga", "lbfgs", "newton-cg"],
+    "max_iter": [50, 150],
+    "fit_intercept": [true, false],
+    "tol": [0.0001, 0.01, "log"]
+  },
+  "LR_bal_params": {
+    "C": 0.004804738023071608,
+    "solver": "liblinear",
+    "max_iter": 1401,
+    "fit_intercept": true,
+    "tol": 3.3684232979302434e-05
+  },
+  "LR_notbal_params": {
+    "C": 0.006360073633500509,
+    "solver": "lbfgs",
+    "max_iter": 1246,
+    "fit_intercept": true,
+    "tol": 0.004434275545443274
+  },
+  "fs_LR_bal_params": {
+    "C": 0.1000368224260484,
+    "solver": "liblinear",
+    "max_iter": 105,
+    "fit_intercept": true,
+    "tol": 0.007107521509940475
+  },
+  "fs_LR_notbal_params": {
+    "C": 0.1000154747637909,
+    "solver": "saga",
+    "max_iter": 105,
+    "fit_intercept": true,
+    "tol": 0.0020420049833952247
+  }
+}

@@ -1,0 +1,13 @@
+{
+  "feature_set": [
+    "event", "apachescore", "age", "teachingstatus", "history_respiratory",
+    "urgentadmission", "admission_respiratory", "admission_endocrine_metabolic",
+    "admission_hematological", "x24hr_metabolicacidosis", "first24hrminrass",
+    "first24hrmaxrass", "x24hr_infection", "rass_mean", "coma", "gcs_motor_mean",
+    "gcs_verbal_mean", "gcs_eyes_mean", "gcs_total_mean", "respiratoryrate_mean",
+    "heartrate_mean", "carit", "pcd", "ond", "diabunc", "alcohol", "gender_male",
+    "unittype_med_surgicu", "unittype_neuroicu", "unittype_sicu", "unitadmitsource_operatingroom",
+    "unitstaytype_stepdown_other", "carbapenems", "crystalloidfluids", "h2blockers",
+    "nsaids", "sedatives_hypnotics_anxiolytics", "neuromuscular_blockers"
+  ]
+}
