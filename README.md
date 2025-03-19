@@ -3,6 +3,21 @@
  The dataset consists of 18,270 ICU admissions from the eICU Collaborative Research Database 
  (https://www.nature.com/articles/sdata2018178).
 
+## Setup
+
+1. Create conda enveironment and install packages:
+```python
+pip install -r requirements.txt
+```
+2. For faster training times of the FT-Transformer install Cuda:
+```python
+conda install -c conda-forge cudatoolkit
+```
+```python
+conda install -c conda-forge cudnn
+```
+
+
 ## EDA.py
 Exploratory data analysis is used to summarize the dataset's characteristics by generating plots and tables.
 
@@ -27,10 +42,9 @@ with the specified hyperparameter space using stratified cross-validation. Retur
   - Outputs the following plots after training and testing:
     - ROC curves
     - Precision-Recall curves
-    - Shapley summary plot
+    - Shapley summary plot or importances inferred from attention weights in the case of the FT-Transformer
     - Confusion matrix
     - Calibration curve
 - borutaShap_feature_selection(X_test, y_test, clf): takes a trained CatBoost classifier and outputs the all-relevant features. Outputs a
 - boruta_feature_selection(X, y, max_iter=100): does normal boruta feature selection using a Random Forest Classifier (less accurate).
 - catboost_fs(clf, X_train, X_test, y_train, y_test): Recursive feature selection for CatBoost using Shapley values. Selects a specified number of features and outputs a graph showing the loss for every removed feature.
-- 

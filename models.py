@@ -577,7 +577,6 @@ def plot_ft_importances(importances, X):
 
     plt.tight_layout()
     plt.savefig("plots/ft_importances.pdf", format="pdf", bbox_inches="tight")
-    plt.show()
 
 
 def get_shap_importance(X_val, shap_values):
