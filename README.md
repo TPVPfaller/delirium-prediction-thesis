@@ -23,4 +23,14 @@ Implementations for Logistic Regression, CatBoost, and FT-Transformer.
 - hpo_cv(X, y, model, param_space, folds=5, n_trials=50): Performs Optuna hyperparameter optimization 
 with the specified hyperparameter space using stratified cross-validation. Returns the best parameters after n_trials.
 - train_and_evaluate(train_and_evaluate(X_train, y_train, X_test, y_test, clf, parameters, name):
-  - Uses bootstrapping on the test prediction
+  - Uses bootstrapping on the test prediction for creating confidence intervals
+  - Outputs the following plots after training and testing:
+    - ROC curves
+    - Precision-Recall curves
+    - Shapley summary plot
+    - Confusion matrix
+    - Calibration curve
+- borutaShap_feature_selection(X_test, y_test, clf): takes a trained CatBoost classifier and outputs the all-relevant features. Outputs a
+- boruta_feature_selection(X, y, max_iter=100): does normal boruta feature selection using a Random Forest Classifier (less accurate).
+- catboost_fs(clf, X_train, X_test, y_train, y_test): Recursive feature selection for CatBoost using Shapley values. Selects a specified number of features and outputs a graph showing the loss for every removed feature.
+- 

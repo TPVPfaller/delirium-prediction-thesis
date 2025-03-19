@@ -172,6 +172,8 @@ def train_and_evaluate(X_train, y_train, X_test, y_test, clf, parameters, name):
     plot_curves(precision_scores, recall_scores, fpr_list, tpr_list, roc_auc_scores, pr_auc_scores, chance, title, name)
     plot_curves(precision_scores, recall_scores, fpr_list, tpr_list, roc_auc_scores, pr_auc_scores, chance, title, name)
     plot_calibration(y_pred_proba, y_test, name)
+    best_f2, f2_threshold = best_f2_threshold(y_pred_proba, y_test)
+    print("Best F2 score: {:.3f} (at threshold {:.3f})".format(best_f2, f2_threshold))
     plot_confusion_matrix(clf, X_test, y_test, name, normalize=False, title=title)
     if 'ft' not in name:
         get_shap(clf, X_test, name)
@@ -325,7 +327,7 @@ def plot_calibration(probs, y_test, name):
     plt.style.use('seaborn-paper')
     fop, mpv = calibration_curve(y_test, probs, n_bins=10)
     plt.figure()
-    plt.title('Calibration Curve')
+    plt.title('Calibration Curve', fontsize=19)
     plt.plot([0, 1], [0, 1], linestyle='--')
     plt.plot(mpv, fop, marker='.')
     plt.savefig(f'plots/calibration_{name}.pdf', format="pdf", bbox_inches="tight")
@@ -337,13 +339,13 @@ def binarize_features(df, columns):
     return df
 
 
-def catboost_fs(clf, X_train, X_test, y_train, y_test):
+def catboost_fs(clf, X_train, X_test, y_train, y_test, num_features=37):
     summary = clf.select_features(
         X_train,
         y=y_train,
         eval_set=(X_test, y_test),
         features_for_select='0-128',
-        num_features_to_select=10,
+        num_features_to_select=num_features,
         steps=10,
         algorithm=EFeaturesSelectionAlgorithm.RecursiveByShapValues,
         shap_calc_type=EShapCalcType.Regular,
@@ -387,10 +389,9 @@ def borutaShap_feature_selection(X, y, model):
 
     feat_selector.fit(X, y, n_trials=120, random_state=1, verbose=True)
     feat_selector.TentativeRoughFix()
-
-    feat_selector.results_to_csv(filename='feature_importance')
+    feat_selector.results_to_csv(filename='borutaShap_importance')
     feat_selector.plot(X_size=12, figsize=(12, 8),
-                       y_scale='log', which_features='accepted', display=True)
+                       y_scale='log', which_features='accepted', display=False)
     plt.savefig('plots/borutaShap.pdf', format="pdf", bbox_inches="tight")
 
 
@@ -456,8 +457,8 @@ def get_shap(clf, X, name):
         plt.savefig("plots/{}_shapley_plot.pdf".format(name), format="pdf", bbox_inches="tight")
         return
     shap_values = explainer.shap_values(X)
-    shap_importance = get_shap_importance(X, shap_values)
-    print(shap_importance)
+    shap_importances = get_shap_importance(X, shap_values)
+    print(shap_importances.head(20))
 
     shap.summary_plot(shap_values, X, max_display=20, show=False)
     plt.savefig("plots/{}_shapley_plot.pdf".format(name), format="pdf", bbox_inches="tight")
@@ -638,11 +639,11 @@ def main():
 
     X_train, X_test, y_train, y_test = create_test_split(X, y, 0.2)
 
-    best_params = cv_hpo(X_train, y_train, LR_bal_clf, LR_space, folds=3)
+    #best_params = cv_hpo(X_train, y_train, LR_bal_clf, LR_space, folds=3)
 
-    clf = train_and_evaluate(X_train, y_train, X_test, y_test, LR_bal_clf, fs_LR_bal_params, name="LR_bal")
+    clf = train_and_evaluate(X_train, y_train, X_test, y_test, cb_bal_clf, fs_cb_bal_params, name="cb_bal")
 
-    # borutaShap_feature_selection(X_test, y_test, clf)
+    #borutaShap_feature_selection(X_test, y_test, clf)
 
     # cb_bal_clf.set_params(**best_cb_bal_params)
     # catboost_fs(cb_bal_clf, X_train, X_test, y_train, y_test)
