@@ -45,7 +45,7 @@ with the specified hyperparameter space using stratified cross-validation. Retur
     - Shapley summary plot or importances inferred from attention weights in the case of the FT-Transformer
     - Confusion matrix
     - Calibration curve
-- borutaShap_feature_selection(X_test, y_test, clf): takes a trained CatBoost classifier and outputs the all-relevant features. Outputs boxplots for the all-relevant features and the shadow attributes.
+- borutaShap_feature_selection(X_test, y_test, clf): takes a CatBoost classifier and outputs the all-relevant features. Outputs boxplots for the all-relevant features and the shadow attributes.
 - boruta_feature_selection(X, y, max_iter=100): does normal boruta feature selection using a Random Forest Classifier (less accurate).
 - catboost_fs(clf, X_train, X_test, y_train, y_test): Recursive feature selection for CatBoost using Shapley values. Selects a specified number of features and outputs a graph showing the loss for every removed feature.
 

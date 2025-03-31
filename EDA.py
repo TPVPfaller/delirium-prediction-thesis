@@ -27,8 +27,6 @@ def get_data():
 
 
 def show_corr(df, var1, var2):
-    plt.figure(figsize=(8, 6))
-
     if df[var1].dtype == 'object':
         var1, var2 = var2, var1
 
@@ -78,22 +76,22 @@ def show_corr(df, var1, var2):
             def fmt2(x):
                 return '{:.0f}'.format(total_false * x / 100)
 
-            ax[0].pie(counts_true['counts'], autopct=fmt1, textprops={'color': "w", 'fontsize': 14},
+            ax[0].pie(counts_true['counts'], autopct=fmt1, textprops={'color': "w", 'fontsize': 22},
                       labels=counts_true[var2], colors=['darkgreen', 'blue', 'grey', 'red'])
-            ax[0].set_title(var1, fontsize=20)
-            ax[0].text(0.5, -0.05, 'total: ' + str(total_true), transform=ax[0].transAxes, ha="center", fontsize=16,
+            ax[0].set_title(var1, fontsize=24)
+            ax[0].text(0.5, -0.05, 'total: ' + str(total_true), transform=ax[0].transAxes, ha="center", fontsize=20,
                        color="gray")
 
-            ax[1].pie(counts_false['counts'], autopct=fmt2, textprops={'color': 'w', 'fontsize': 14},
+            ax[1].pie(counts_false['counts'], autopct=fmt2, textprops={'color': 'w', 'fontsize': 22},
                       labels=counts_false[var2], colors=['darkgreen', 'blue', 'grey', 'red'])
-            ax[1].set_title('no ' + var1, fontsize=20)
-            ax[1].text(0.5, -0.05, 'total: ' + str(total_false), transform=ax[1].transAxes, ha="center", fontsize=16,
+            ax[1].set_title('no ' + var1, fontsize=24)
+            ax[1].text(0.5, -0.05, 'total: ' + str(total_false), transform=ax[1].transAxes, ha="center", fontsize=20,
                        color="gray")
 
             handles, labels = plt.gca().get_legend_handles_labels()
             if df[var2].dtype == bool:
                 labels = [var2 + ' = False', var2 + ' = True']
-            fig.legend(handles, labels, loc='lower center', fontsize=16)
+            fig.legend(handles, labels, loc='lower center', fontsize=18)
 
     plt.xticks(fontsize=13)
     plt.yticks(fontsize=13)
@@ -297,12 +295,12 @@ def main():
 
     df = binarize_outcome_variable(df)
 
-    pearson_df = pearson_corr(df, 'event')
-    spearman_df = spearman_corr(df, 'event')
+    #pearson_df = pearson_corr(df, 'event')
+    #spearman_df = spearman_corr(df, 'event')
 
-    plot_corr(pearson_df, spearman_df)
+    #plot_corr(pearson_df, spearman_df)
 
-    show_corr(df, 'event', 'admissionheight')
+    show_corr(df, 'event', 'coma')
 
     # print(get_highest_corr(df, 'event', threshold=0.0).head(50))
     # sns.pairplot(df[['age', 'apachescore', 'event']], hue='event')
