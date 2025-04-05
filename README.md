@@ -29,7 +29,6 @@ Implemented methods:
 - Spearman and Pearson correlation returning the top correlations of the dataset.
 - Cramers_V for calculating the correlation of two categorical variables.
 - plot_corr(pearson_df, spearman_df): bar plot for plotting Pearson and Spearman correlation next to each other.
-- PCA (pca_vis(df)) and t-SNE (tsne_vis(df))
 - pie(df): pie chart of predictor distribution
 - show_corr(df, var1, var2): visualizes correlation of two variables.
   - two categorical variables: two pie charts
