@@ -1,7 +1,11 @@
 # Prediction of ICU Delirium using Machine Learning Models
 
- The dataset consists of 18,270 ICU admissions from the eICU Collaborative Research Database 
- (https://www.nature.com/articles/sdata2018178).
+## Data
+The dataset consists of 18,270 ICU admissions from the eICU Collaborative Research Database (https://www.nature.com/articles/sdata2018178).
+
+If this dataset isn't accessible, there are two additional datasets that can be used:
+ - titanic.csv: Small dataset for fast execution times
+ - heart_disease.csv: Large dataset
 
 ## Setup
 

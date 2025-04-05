@@ -1,4 +1,3 @@
-# model train and validate & evaluation
 import tensorflow as tf
 from sklearn.calibration import calibration_curve
 import json
@@ -49,13 +48,23 @@ def load_json(file_path):
         return json.load(file)
 
 
-def prepare_data():
-    df = pd.read_csv("data/first24hourdata_new.csv")
+def prepare_data(location = "data/first24hourdata_new.csv", target='event', drop_right_censored=False):
+    df = pd.read_csv(location)
+    df = df.dropna()
+
+    df = df.rename(columns={target: "target"})
+
+    if drop_right_censored:
+        df = df[df['target'] != 0] # Drop right censored data
+    df['target'] = df['target'] == 1
 
     df.columns = [x.lower() for x in df.columns]
     df = df.drop(
         ['patientunitstayid', 'tstart', 'tend', 'interval', 'unnamed_0', 'dummy_1', 'dummy_2', 'dummy_3', 'delir',
          'offset', 'interval', 'cause'], axis=1, errors='ignore')
+
+    for col in df.select_dtypes(include=['object', 'string']).columns:
+        df[col] = df[col].astype('category').cat.codes
     # Identify binary columns
     binary_cols = df.columns[(df.nunique() == 2) & df.isin([0, 1]).all()]
     df[binary_cols] = df[binary_cols].astype(bool)
@@ -64,10 +73,8 @@ def prepare_data():
 
 def split_df(df):
     df = shuffle(df, random_state=1)
-    X = df[df['event'] != 'none']
-    y = df['event']
-    y = (y == 1)
-    X = X.drop(['event'], axis=1)
+    y = df['target']
+    X = df.drop(['target'], axis=1)
     return X, y
 
 
@@ -103,11 +110,11 @@ def create_train_val_datasets(X, y):
 
     train_data, val_data, y_train, y_val = train_test_split(df, y, test_size=0.2, random_state=1, stratify=y)
 
-    train_data['event'] = y_train
-    val_data['event'] = y_val
+    train_data['target'] = y_train
+    val_data['target'] = y_val
 
-    train_dataset = df_to_dataset(train_data, 'event', shuffle=True, batch_size=64)
-    val_dataset = df_to_dataset(val_data, 'event', shuffle=False, batch_size=64)
+    train_dataset = df_to_dataset(train_data, 'target', shuffle=True, batch_size=64)
+    val_dataset = df_to_dataset(val_data, 'target', shuffle=False, batch_size=64)
     return train_dataset, val_dataset
 
 
@@ -120,7 +127,7 @@ def format_df(X, y):
     df[cat_features] = df[cat_features].astype(str)  # Categorical as string
     df[num_features] = df[num_features].astype(np.float32)  # Numerical as float32
 
-    df['event'] = y.astype(int)
+    df['target'] = y.astype(int)
 
     data = df_to_dataset(df, shuffle=False, batch_size=1024)
 
@@ -316,7 +323,7 @@ def get_confusion_matrix(clf, X_test, y_test):
 
 def plot_confusion_matrix(clf, X_test, y_test, name, normalize=False, title='Confusion matrix', cmap=plt.cm.Blues):
     plt.style.use('seaborn-paper')
-    classes = ['No delir', 'Delir']
+    classes = ['False', 'True']  #['No delir', 'Delir']
     cm = get_confusion_matrix(clf, X_test, y_test)
     tp_fn_sum = np.sum(cm[:, -1])
     title_fontsize_first_line = 17
@@ -405,11 +412,12 @@ def catboost_fs(clf, X_train, X_test, y_train, y_test, num_features=37):
         y_test (pd.Series): Testing target vector
         num_features (int, optional): Number of features to select, 37 results in the lowest loss
     """
+
     summary = clf.select_features(
         X_train,
         y=y_train,
         eval_set=(X_test, y_test),
-        features_for_select='0-128',
+        features_for_select=f'0-{len(X_train.columns)-1}',
         num_features_to_select=num_features,
         steps=10,
         algorithm=EFeaturesSelectionAlgorithm.RecursiveByShapValues,
@@ -650,12 +658,13 @@ def main():
 
     # Load parameters and feature set from JSON files
     params = load_json('params.json')
+
+    # For hear_disease.csv use HeartDiseaseorAttack as target
+    df = prepare_data('data/titanic.csv', 'Survived')
+
     features = load_json('features.json')
-
-    smaller_featureset = features['feature_set']
-    df = prepare_data()
-
-    # df = df[smaller_featureset]
+    # smaller_featureset = features['feature_set'] + ['target']
+    #df = df[smaller_featureset]
     X, y = split_df(df)
 
     LR_space = params['LR_space']
@@ -685,14 +694,14 @@ def main():
 
     X_train, X_test, y_train, y_test = create_test_split(X, y, 0.2)
 
-    # best_params = cv_hpo(X_train, y_train, LR_bal_clf, LR_space, folds=3)
+    #best_params = cv_hpo(X_train, y_train, cb_bal_clf, cb_space, folds=4)
 
-    #clf = train_and_evaluate(X_train, y_train, X_test, y_test, cb_bal_clf, cb_bal_params, name="cb_bal")
+    clf = train_and_evaluate(X_train, y_train, X_test, y_test, cb_bal_clf, cb_bal_params, name="cb_bal")
 
-    borutaShap_feature_selection(X_test, y_test, cb_bal_clf)
+    #borutaShap_feature_selection(X_test, y_test, cb_bal_clf)
 
     # cb_bal_clf.set_params(**best_cb_bal_params)
-    # catboost_fs(cb_bal_clf, X_train, X_test, y_train, y_test)
+    #catboost_fs(cb_bal_clf, X_train, X_test, y_train, y_test, num_features=5)
 
     plt.show()
 

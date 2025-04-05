@@ -1,6 +1,6 @@
 {
   "feature_set": [
-    "event", "apachescore", "age", "teachingstatus", "history_respiratory",
+    "apachescore", "age", "teachingstatus", "history_respiratory",
     "urgentadmission", "admission_respiratory", "admission_endocrine_metabolic",
     "admission_hematological", "x24hr_metabolicacidosis", "first24hrminrass",
     "first24hrmaxrass", "x24hr_infection", "rass_mean", "coma", "gcs_motor_mean",
