@@ -1,6 +1,7 @@
 import tensorflow as tf
 from sklearn.calibration import calibration_curve
 import json
+import inspect
 
 gpus = tf.config.list_physical_devices('GPU')
 if gpus:
@@ -138,10 +139,17 @@ def ft_transformer(X, params=None, weighted=True):
 
 
 def plot_ft_importances(importances, X):
-    feature_names = X.columns
-    importances = importances[:, :-1]
+    """
+    Plots the top 20 feature importances averaged across folds.
 
+    Args:
+        importances (np.ndarray): Array of shape (n_folds, n_features + 1) with feature importances.
+        X (pd.DataFrame): Feature dataframe for retrieving column names.
+    """
+    # Drop the last column if it's not a feature
+    importances = importances[:, :-1]
     mean_importances = np.mean(importances, axis=0)
+    feature_names = X.columns
 
     importance_df = pd.DataFrame({
         "Feature": feature_names,
@@ -152,7 +160,6 @@ def plot_ft_importances(importances, X):
 
     plt.style.use("seaborn-paper")
     plt.figure(figsize=(8, 10))
-
     plt.barh(top_20["Feature"], top_20["Importance"], color='b', alpha=0.7)
 
     plt.xlabel("Mean Importance", fontsize=18)
@@ -160,8 +167,7 @@ def plot_ft_importances(importances, X):
     plt.xticks(fontsize=14)
     plt.yticks(fontsize=14)
     plt.title("Top 20 Feature Importances", fontsize=24)
-    plt.gca().invert_yaxis()  # Invert y-axis to show highest at top
-
+    plt.gca().invert_yaxis()
     plt.tight_layout()
     plt.savefig("plots/ft_importances.pdf", format="pdf", bbox_inches="tight")
 
@@ -190,6 +196,7 @@ def print_metrics_with_ci(**metrics):
         mean, ci = calculate_confidence_interval(metrics[key])
         print(f"{label}: {mean:.3f} ({mean - ci:.3f}, {mean + ci:.3f})")
 
+
 def calculate_confidence_interval(data, confidence=0.95):
     mean, std, n = np.mean(data), statistics.stdev(data), len(data)
     t_val = t.ppf((1 + confidence) / 2., n - 1)
@@ -199,53 +206,57 @@ def calculate_confidence_interval(data, confidence=0.95):
 def plot_curves(precision_scores, recall_scores, fpr_list, tpr_list, roc_auc, pr_auc, chance, title, name):
     plt.style.use('seaborn-paper')
 
-    mean_roc_auc, roc_auc_ci = calculate_confidence_interval(roc_auc)
-    mean_pr_auc, pr_auc_ci = calculate_confidence_interval(pr_auc)
+    def plot_pr_curve():
+        mean_pr_auc, pr_auc_ci = calculate_confidence_interval(pr_auc)
+        recall_common = np.linspace(0, 1, 100)
+        precision_interp = np.array([np.interp(recall_common, r[::-1], p[::-1]) for p, r in zip(precision_scores, recall_scores)])
 
-    recall_common = np.linspace(0, 1, 100)
-    precision_interp = np.array(
-        [np.interp(recall_common, r[::-1], p[::-1]) for p, r in zip(precision_scores, recall_scores)])
+        lower_precision = np.percentile(precision_interp, 2.5, axis=0)
+        upper_precision = np.percentile(precision_interp, 97.5, axis=0)
+        mean_precision = np.mean(precision_interp, axis=0)
 
-    lower_precision = np.percentile(precision_interp, 2.5, axis=0)
-    upper_precision = np.percentile(precision_interp, 97.5, axis=0)
+        plt.figure()
+        plt.plot(recall_common, mean_precision, color='blue', lw=2,
+                 label=f'Mean PR ({mean_pr_auc:.3f} [{mean_pr_auc - pr_auc_ci:.3f}, {mean_pr_auc + pr_auc_ci:.3f}])')
+        plt.fill_between(recall_common, lower_precision, upper_precision, color="orange", alpha=0.3, label="95% CI")
+        plt.plot([0, 1], [chance, chance], color='red', lw=2, linestyle='--', label='Chance')
+        plt.xlabel('Recall', fontsize=15)
+        plt.ylabel('Precision', fontsize=15)
+        plt.xticks(fontsize=12)
+        plt.yticks(fontsize=12)
+        plt.title(title or 'Precision-Recall Curve', fontsize=19)
+        plt.legend(loc="best", fontsize=13)
+        plt.xlim([0, 1])
+        plt.ylim([0, 1])
+        plt.savefig(f"plots/pr_{name}.pdf", format="pdf", bbox_inches="tight")
 
-    mean_precision = np.mean(precision_interp, axis=0)
-    plt.figure()
-    plt.plot(recall_common, mean_precision, color='blue', lw=2,
-             label=f'Mean PR ({mean_pr_auc:.3f} [{mean_pr_auc - pr_auc_ci:.3f}, {mean_pr_auc + pr_auc_ci:.3f}])')
-    plt.fill_between(recall_common, lower_precision, upper_precision, color="orange", alpha=0.3, label="95% CI")
-    plt.plot([0, 1], [chance, chance], color='red', lw=2, linestyle='--', label='Chance')
-    plt.xlabel('Recall', fontsize=15)
-    plt.ylabel('Precision', fontsize=15)
-    plt.xticks(fontsize=12)
-    plt.yticks(fontsize=12)
-    plt.title(title or 'Precision-Recall Curve', fontsize=19)
-    plt.legend(loc="best", fontsize=13)
-    plt.xlim([0, 1])
-    plt.ylim([0, 1])
-    plt.savefig(f"plots/pr_{name}.pdf", format="pdf", bbox_inches="tight")
+    def plot_roc_curve():
+        mean_roc_auc, roc_auc_ci = calculate_confidence_interval(roc_auc)
+        fpr_common = np.linspace(0, 1, 100)
+        tpr_interp = np.array([np.interp(fpr_common, fpr, tpr) for fpr, tpr in zip(fpr_list, tpr_list)])
 
-    fpr_common = np.linspace(0, 1, 100)
-    tpr_interp = np.array([np.interp(fpr_common, fpr, tpr) for fpr, tpr in zip(fpr_list, tpr_list)])
+        lower_tpr = np.percentile(tpr_interp, 2.5, axis=0)
+        upper_tpr = np.percentile(tpr_interp, 97.5, axis=0)
+        mean_tpr = np.mean(tpr_interp, axis=0)
 
-    lower_tpr = np.percentile(tpr_interp, 2.5, axis=0)
-    upper_tpr = np.percentile(tpr_interp, 97.5, axis=0)
+        plt.figure()
+        plt.plot(fpr_common, mean_tpr, color='blue', lw=2,
+                 label=f'Mean ROC ({mean_roc_auc:.3f} [{mean_roc_auc - roc_auc_ci:.3f}, {mean_roc_auc + roc_auc_ci:.3f}])')
+        plt.fill_between(fpr_common, lower_tpr, upper_tpr, color="orange", alpha=0.3, label="95% CI")
+        plt.plot([0, 1], [0, 1], color='red', lw=2, label="Chance", linestyle='--')
+        plt.xlim([0.0, 1.0])
+        plt.ylim([0.0, 1.05])
+        plt.xlabel('False Positive Rate', fontsize=15)
+        plt.ylabel('True Positive Rate', fontsize=15)
+        plt.xticks(fontsize=12)
+        plt.yticks(fontsize=12)
+        plt.title(title or 'Receiver Operating Characteristic (ROC) Curve', fontsize=19)
+        plt.legend(loc="lower right", fontsize=13)
+        plt.savefig(f"plots/roc_{name}.pdf", format="pdf", bbox_inches="tight")
 
-    mean_tpr = np.mean(tpr_interp, axis=0)
-    plt.figure()
-    plt.plot(fpr_common, mean_tpr, color='blue', lw=2,
-             label=f'Mean ROC ({mean_roc_auc:.3f} [{mean_roc_auc - roc_auc_ci:.3f}, {mean_roc_auc + roc_auc_ci:.3f}])')
-    plt.fill_between(fpr_common, lower_tpr, upper_tpr, color="orange", alpha=0.3, label="95% CI")
-    plt.plot([0, 1], [0, 1], color='red', lw=2, label="Chance", linestyle='--')
-    plt.xlim([0.0, 1.0])
-    plt.ylim([0.0, 1.05])
-    plt.xlabel('False Positive Rate', fontsize=15)
-    plt.ylabel('True Positive Rate', fontsize=15)
-    plt.xticks(fontsize=12)
-    plt.yticks(fontsize=12)
-    plt.title(title or 'Receiver Operating Characteristic (ROC) Curve', fontsize=19)
-    plt.legend(loc="lower right", fontsize=13)
-    plt.savefig(f"plots/roc_{name}.pdf", format="pdf", bbox_inches="tight")
+    # Plot the PR and ROC curves
+    plot_pr_curve()
+    plot_roc_curve()
 
 
 def get_confusion_matrix(clf, X_test, y_test):
@@ -261,7 +272,7 @@ def get_confusion_matrix(clf, X_test, y_test):
 
 def plot_confusion_matrix(clf, X_test, y_test, name, normalize=False, title='Confusion matrix', cmap=plt.cm.Blues):
     plt.style.use('seaborn-paper')
-    classes = ['False', 'True']  #['No delir', 'Delir']
+    classes = ['False', 'True']  # ['No delir', 'Delir']
     cm = get_confusion_matrix(clf, X_test, y_test)
     tp_fn_sum = np.sum(cm[:, -1])
     title_fontsize_first_line = 17
@@ -317,14 +328,14 @@ def get_shap(clf, X, name):
         explainer = shap.KernelExplainer(clf, X.iloc[:1500, :])
         shap_values = explainer.shap_values(X.iloc[2000:5000, :])
         shap.summary_plot(shap_values, X, max_display=20, show=False)
-        plt.savefig("plots/{}_shapley_plot.pdf".format(name), format="pdf", bbox_inches="tight")
+        plt.savefig(f"plots/shapley_plot_{name}.pdf", format="pdf", bbox_inches="tight")
         return
     shap_values = explainer.shap_values(X)
     shap_importances = get_shap_importance(X, shap_values)
     print(shap_importances.head(20))
 
     shap.summary_plot(shap_values, X, max_display=20, show=False)
-    plt.savefig("plots/{}_shapley_plot.pdf".format(name), format="pdf", bbox_inches="tight")
+    plt.savefig(f"plots/shapley_plot_{name}.pdf", format="pdf", bbox_inches="tight")
 
 
 def get_shap_importance(X_val, shap_values):
@@ -338,7 +349,7 @@ def get_shap_importance(X_val, shap_values):
     return df_feature_importance.sort_values('importance', ascending=False).reset_index(drop=True)
 
 
-def catboost_fs(clf, X_train, X_test, y_train, y_test, num_features=37):
+def catboost_fs(clf, X_train, X_test, y_train, y_test, num_features=37, filename='fs_cb_bal.pdf'):
     """
     Performs feature selection using CatBoost's SHAP-based recursive selection
 
@@ -355,7 +366,7 @@ def catboost_fs(clf, X_train, X_test, y_train, y_test, num_features=37):
         X_train,
         y=y_train,
         eval_set=(X_test, y_test),
-        features_for_select=f'0-{len(X_train.columns)-1}',
+        features_for_select=f'0-{len(X_train.columns) - 1}',
         num_features_to_select=num_features,
         steps=10,
         algorithm=EFeaturesSelectionAlgorithm.RecursiveByShapValues,
@@ -374,7 +385,7 @@ def catboost_fs(clf, X_train, X_test, y_train, y_test, num_features=37):
     plt.ylabel('Loss', fontsize=15)
     plt.xticks(fontsize=12)
     plt.yticks(fontsize=12)
-    plt.savefig('plots/cb_bal_fs.pdf', format="pdf", bbox_inches="tight")
+    plt.savefig(f'plots/{filename}.pdf', format="pdf", bbox_inches="tight")
 
 
 def boruta_feature_selection(X, y, max_iter=100):
@@ -499,6 +510,9 @@ def cv_hpo(X, y, clf, param_space=None, folds=5, n_trials=150):
     print(f"Best hyperparameters: {best_params}")
     return best_params
 
+def get_var_name(obj):
+    """Gets the variable name(s) of the object in the global scope."""
+    return [name for name, value in globals().items() if value is obj]
 
 def train_and_evaluate(X_train, y_train, X_test, y_test, clf, parameters, name):
     """
@@ -516,11 +530,13 @@ def train_and_evaluate(X_train, y_train, X_test, y_test, clf, parameters, name):
     Returns:
         clf: Trained classifier.
     """
+    assert "bal" in name;
+
     precision_scores, recall_scores, roc_auc_scores, pr_auc_scores = [], [], [], []
     brier_scores, f2_scores, specificity_list, sensitivity_list = [], [], [], []
     npv_list, precision_list, recall_list, fpr_list, tpr_list = [], [], [], [], []
 
-    if type(clf) == tuple:
+    if isinstance(clf, tuple):
         clf, early_stopping, weighted = clf
         weights = compute_class_weight('balanced', np.unique(y_train), y_train)
         train_dataset, val_dataset = create_train_val_datasets(X_train, y_train)
@@ -544,7 +560,7 @@ def train_and_evaluate(X_train, y_train, X_test, y_test, clf, parameters, name):
         y_pred_proba = clf.predict_proba(X_test)[:, 1]
         y_pred = clf.predict(X_test)
 
-    if type(y_pred[0]) == str:
+    if isinstance(y_pred[0], str):
         y_pred = y_pred == 'True'
 
     rng, idx = np.random.RandomState(seed=2), np.arange(y_test.shape[0])
@@ -585,65 +601,77 @@ def train_and_evaluate(X_train, y_train, X_test, y_test, clf, parameters, name):
     best_f2, f2_threshold = best_f2_threshold(y_pred_proba, y_test)
     print("Best F2 score: {:.3f} (at threshold {:.3f})".format(best_f2, f2_threshold))
     plot_confusion_matrix(clf, X_test, y_test, name, normalize=False, title=title)
-    if 'ft' not in name:
+    if clf.__class__.__name__ != 'FTTransformer':
         get_shap(clf, X_test, name)
     return clf
 
 
 def main():
     print("Num GPUs Available: ", len(tf.config.list_physical_devices('GPU')))
-
     plt.style.use('seaborn-paper')
     matplotlib.rcParams.update({'figure.autolayout': True})
 
-    # Load parameters and feature set from JSON files
+    # Load parameters and features
     params = load_json('params.json')
+    feature_subset = load_json('features.json')['feature_set']
 
-
-    df = prepare_data('data/first24hourdata_new.csv', 'event')
+    # Load and prepare the dataset
+    #df = prepare_data('data/first24hourdata_new.csv', 'event')
     #df = prepare_data('data/heart_disease.csv', 'HeartDiseaseorAttack')
-    #df = prepare_data('data/titanic.csv', 'Survived')
+    df = prepare_data('data/titanic.csv', 'Survived')
 
-    features = load_json('features.json')
-    # smaller_featureset = features['feature_set'] + ['target']
-    #df = df[smaller_featureset]
+    # Use smaller feature set (only for 24hourdata)
+    #df = df[feature_subset + ['target']]
+
     X, y = split_df(df)
 
-    LR_space = params['LR_space']
-    LR_bal_params = params['LR_bal_params']
-    LR_notbal_params = params['LR_notbal_params']
-    fs_LR_bal_params = params['fs_LR_bal_params']
-    fs_LR_notbal_params = params['fs_LR_notbal_params']
+    # Extract model parameters from JSON
+    model_params = {
+        'LR': {
+            'space': params['LR_space'],
+            'bal_params': params['LR_bal_params'],
+            'notbal_params': params['LR_notbal_params'],
+            'fs_bal_params': params['fs_LR_bal_params'],
+            'fs_notbal_params': params['fs_LR_notbal_params']
+        },
+        'cb': {
+            'space': params['cb_space'],
+            'bal_params': params['cb_bal_params'],
+            'notbal_params': params['cb_notbal_params'],
+            'fs_bal_params': params['fs_cb_bal_params'],
+            'fs_notbal_params': params['fs_cb_notbal_params']
+        },
+        'ft': {
+            'space': params['ft_space'],
+            'bal_params': params['ft_bal_params'],
+            'fs_bal_params': params['fs_ft_bal_params']
+        }
+    }
 
-    cb_space = params['cb_space']
-    cb_bal_params = params['cb_bal_params']
-    cb_notbal_params = params['cb_notbal_params']
-    fs_cb_bal_params = params['fs_cb_bal_params']
-    fs_cb_notbal_params = params['fs_cb_notbal_params']
-
-    ft_space = params['ft_space']
-    ft_bal_params = params['ft_bal_params']
-    fs_ft_bal_params = params['fs_ft_bal_params']
-
+    # Initialize classifiers
     LR_notbal_clf = LogisticRegression(n_jobs=-1, random_state=1)
     LR_bal_clf = LogisticRegression(class_weight='balanced', n_jobs=-1, random_state=1)
-
     cb_bal_clf = CatBoostClassifier(auto_class_weights='Balanced', verbose=False, eval_metric='AUC', random_state=1)
     cb_notbal_clf = CatBoostClassifier(verbose=False, eval_metric='AUC', random_state=1)
-
-    ft_bal_clf = ft_transformer(X, fs_ft_bal_params, weighted=True)
-    ft_notbal_clf = ft_transformer(X, fs_ft_bal_params, weighted=False)
+    ft_fs_bal_clf = ft_transformer(X, model_params['ft']['fs_bal_params'], weighted=True)
+    ft_fs_notbal_clf = ft_transformer(X, model_params['ft']['fs_bal_params'], weighted=False) # HPO was only done for bal
+    ft_bal_clf = ft_transformer(X, model_params['ft']['bal_params'], weighted=True)
+    ft_notbal_clf = ft_transformer(X, model_params['ft']['bal_params'], weighted=False)  # HPO was only done for bal
 
     X_train, X_test, y_train, y_test = create_test_split(X, y, 0.2)
 
-    #best_params = cv_hpo(X_train, y_train, ft_notbal_clf, ft_space, folds=4, n_trials=50)
+    # Perform Hyperparmeter Optimization (hpo) with k-fold cross-validation
+    #best_params = cv_hpo(X_train, y_train, cb_notbal_clf, model_params['cb']['space'], folds=4, n_trials=50)
 
-    # Change model and parameters here
-    clf = train_and_evaluate(X_train, y_train, X_test, y_test, LR_bal_clf, LR_bal_params, name="LR_bal")
+    # Train and evaluate model (change classifier, params and file name for plots here).
+    clf = train_and_evaluate(X_train, y_train, X_test, y_test, cb_bal_clf, model_params['cb']['bal_params'], 'cb_bal')
 
+    # Outputs all-relevant features for a CatBoost model. Outputs box plots for features and shadow attributes.
+    #cb_bal_clf.set_params(**model_params['cb']['bal_params'])
     #borutaShap_feature_selection(X_test, y_test, cb_bal_clf)
 
-    #cb_bal_clf.set_params(**cb_bal_params)
+    # Perform recursive feature selection using a CatBoost model
+    #cb_bal_clf.set_params(**model_params['cb']['bal_params'])
     #catboost_fs(cb_bal_clf, X_train, X_test, y_train, y_test, num_features=5)
 
     plt.show()
