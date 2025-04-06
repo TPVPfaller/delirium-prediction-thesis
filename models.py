@@ -48,24 +48,20 @@ def load_json(file_path):
         return json.load(file)
 
 
-def prepare_data(location = "data/first24hourdata_new.csv", target='event', drop_right_censored=False):
-    df = pd.read_csv(location)
-    df = df.dropna()
-
-    df = df.rename(columns={target: "target"})
-
+def prepare_data(location="data/first24hourdata_new.csv", target='event', drop_right_censored=False):
+    df = pd.read_csv(location).dropna().rename(columns={target: 'target'})
     if drop_right_censored:
-        df = df[df['target'] != 0] # Drop right censored data
+        df = df[df['target'] != 0]
     df['target'] = df['target'] == 1
+    df.columns = df.columns.str.lower()
 
-    df.columns = [x.lower() for x in df.columns]
-    df = df.drop(
-        ['patientunitstayid', 'tstart', 'tend', 'interval', 'unnamed_0', 'dummy_1', 'dummy_2', 'dummy_3', 'delir',
-         'offset', 'interval', 'cause'], axis=1, errors='ignore')
+    drop_cols = ['patientunitstayid', 'tstart', 'tend', 'interval', 'unnamed_0',
+                 'dummy_1', 'dummy_2', 'dummy_3', 'delir', 'offset', 'cause']
+    df.drop(columns=drop_cols, errors='ignore', inplace=True)
 
-    for col in df.select_dtypes(include=['object', 'string']).columns:
+    for col in df.select_dtypes(include=['object', 'string']):
         df[col] = df[col].astype('category').cat.codes
-    # Identify binary columns
+
     binary_cols = df.columns[(df.nunique() == 2) & df.isin([0, 1]).all()]
     df[binary_cols] = df[binary_cols].astype(bool)
     return df
@@ -73,116 +69,72 @@ def prepare_data(location = "data/first24hourdata_new.csv", target='event', drop
 
 def split_df(df):
     df = shuffle(df, random_state=1)
-    y = df['target']
-    X = df.drop(['target'], axis=1)
-    return X, y
+    return df.drop('target', axis=1), df['target']
 
 
 def create_test_split(X, y, test_size=0.2):
-    # Split the dataset
-    X_train, X_test, y_train, y_test = train_test_split(
-        X, y, test_size=test_size, stratify=y, shuffle=True, random_state=1
-    )
-    num_features = X.select_dtypes(include=[np.number]).columns.tolist()
-    X_train = pd.DataFrame(X_train)
-    X_test = pd.DataFrame(X_test)
-
-    # Apply feature scaling
+    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=test_size,
+                                                        stratify=y, shuffle=True, random_state=1)
+    num_cols = X.select_dtypes(include=[np.number]).columns
     scaler = StandardScaler()
-    X_train[num_features] = scaler.fit_transform(X_train[num_features])
-    X_test[num_features] = scaler.transform(X_test[num_features])
+    X_train[num_cols] = scaler.fit_transform(X_train[num_cols])
+    X_test[num_cols] = scaler.transform(X_test[num_cols])
 
-    X_train_scaled = pd.DataFrame(X_train, columns=X_train.columns)
-    X_test_scaled = pd.DataFrame(X_test, columns=X_test.columns)
+    return pd.DataFrame(X_train), pd.DataFrame(X_test), y_train, y_test
 
-    return X_train_scaled, X_test_scaled, y_train, y_test
+
+def cast_num_cat_features(df):
+    df = df.applymap(lambda x: int(x) if isinstance(x, bool) else x)
+    num_cols = df.select_dtypes(include=[np.number]).columns
+    cat_cols = df.select_dtypes(exclude=[np.number]).columns
+    df[num_cols] = df[num_cols].astype(np.float32)
+    df[cat_cols] = df[cat_cols].astype(str)
+    return df, num_cols, cat_cols
 
 
 def create_train_val_datasets(X, y):
-    df = X.copy()
+    df, num_cols, cat_cols = cast_num_cat_features(X.copy())
     y = y.astype('int64')
-    num_features = df.select_dtypes(include=[np.number]).columns.tolist()
-    cat_features = df.select_dtypes(exclude=[np.number]).columns.tolist()
-
-    df = df.applymap(lambda x: int(x) if isinstance(x, bool) else x)
-    df[cat_features] = df[cat_features].astype(str)
-    df[num_features] = df[num_features].astype(float)
-
     train_data, val_data, y_train, y_val = train_test_split(df, y, test_size=0.2, random_state=1, stratify=y)
+    train_data['target'], val_data['target'] = y_train, y_val
 
-    train_data['target'] = y_train
-    val_data['target'] = y_val
-
-    train_dataset = df_to_dataset(train_data, 'target', shuffle=True, batch_size=64)
-    val_dataset = df_to_dataset(val_data, 'target', shuffle=False, batch_size=64)
-    return train_dataset, val_dataset
+    return (
+        df_to_dataset(train_data, 'target', shuffle=True, batch_size=64),
+        df_to_dataset(val_data, 'target', shuffle=False, batch_size=64)
+    )
 
 
 def format_df(X, y):
-    df = X.copy()
-    num_features = df.select_dtypes(include=[np.number]).columns.tolist()
-    cat_features = df.select_dtypes(exclude=[np.number]).columns.tolist()
-    df = df.applymap(lambda x: int(x) if isinstance(x, bool) else x)
-
-    df[cat_features] = df[cat_features].astype(str)  # Categorical as string
-    df[num_features] = df[num_features].astype(np.float32)  # Numerical as float32
-
+    df, _, _ = cast_num_cat_features(X.copy())
     df['target'] = y.astype(int)
-
-    data = df_to_dataset(df, shuffle=False, batch_size=1024)
-
-    return data
+    return df_to_dataset(df, shuffle=False, batch_size=1024)
 
 
-def ft_transformer(X, params, weighted=True):
-    df = X.copy()
-    num_features = X.select_dtypes(include=[np.number]).columns.tolist()
-    cat_features = X.select_dtypes(exclude=[np.number]).columns.tolist()
-    df = df.applymap(lambda x: int(x) if isinstance(x, bool) else x)
-    df[cat_features] = df[cat_features].astype(str)
-    df[num_features] = df[num_features].astype(float)
-    if params:
-        encoder_params = {
-            'numerical_features': num_features,
-            'categorical_features': cat_features,
-            'numerical_data': df[num_features].values,
-            'categorical_data': df[cat_features].values,
-            'embedding_dim': params['embedding_dim'],
-            'depth': params['encoder_depth'],
-            'heads': params['heads'],
-            'attn_dropout': params['attn_dropout'],
-            'ff_dropout': params['ff_dropout'],
-            'explainable': True
-        }
-        lr, weight_decay = params['learning_rate'], params['weight_decay']
-    else:  # default Hyperparameters
-        encoder_params = {
-            'numerical_features': num_features,
-            'categorical_features': cat_features,
-            'numerical_data': df[num_features].values,
-            'categorical_data': df[cat_features].values,
-            'embedding_dim': 16,
-            'depth': 6,
-            'heads': 8,
-            'attn_dropout': 0.2,
-            'ff_dropout': 0.2,
-            'explainable': True
-        }
-        lr, weight_decay = 0.0001, 0.00001
+def ft_transformer(X, params=None, weighted=True):
+    df, num_cols, cat_cols = cast_num_cat_features(X.copy())
+    encoder_params = {
+        'numerical_features': num_cols,
+        'categorical_features': cat_cols,
+        'numerical_data': df[num_cols].values,
+        'categorical_data': df[cat_cols].values,
+        'embedding_dim': params.get('embedding_dim', 16),
+        'depth': params.get('encoder_depth', 6),
+        'heads': params.get('heads', 8),
+        'attn_dropout': params.get('attn_dropout', 0.2),
+        'ff_dropout': params.get('ff_dropout', 0.2),
+        'explainable': True
+    }
+    lr = params.get('learning_rate', 1e-4)
+    wd = params.get('weight_decay', 1e-5)
 
-    ft_linear_encoder = FTTransformerEncoder(**encoder_params)
-    ft_model = FTTransformer(encoder=ft_linear_encoder, out_dim=1, depth=params.get('transformer_depth', 6),
-                             out_activation='sigmoid')
-    optimizer = tfa.optimizers.AdamW(learning_rate=lr, weight_decay=weight_decay)
-
-    ft_model.compile(
-        optimizer=optimizer,
+    model = FTTransformer(encoder=FTTransformerEncoder(**encoder_params), out_dim=1,
+                          depth=params.get('transformer_depth', 6), out_activation='sigmoid')
+    model.compile(
+        optimizer=tfa.optimizers.AdamW(learning_rate=lr, weight_decay=wd),
         loss={"output": tf.keras.losses.BinaryCrossentropy(), "importances": None},
-        metrics={"output": [tf.keras.metrics.AUC(), tf.keras.metrics.Recall(), tf.keras.metrics.Precision()]},
+        metrics={"output": [tf.keras.metrics.AUC(), tf.keras.metrics.Recall(), tf.keras.metrics.Precision()]}
     )
-    early_stopping = tf.keras.callbacks.EarlyStopping(monitor="val_loss", patience=7, restore_best_weights=True)
-
-    return ft_model, early_stopping, weighted
+    return model, tf.keras.callbacks.EarlyStopping(monitor="val_loss", patience=7, restore_best_weights=True), weighted
 
 
 def plot_ft_importances(importances, X):
@@ -217,45 +169,31 @@ def plot_ft_importances(importances, X):
 def best_f2_threshold(y_probs, y_true):
     thresholds = np.linspace(0, 1, 100)
     f2_scores = [fbeta_score(y_true, (y_probs >= t).astype(int), beta=2) for t in thresholds]
-
     best_idx = np.argmax(f2_scores)
     return f2_scores[best_idx], thresholds[best_idx]
 
 
-def print_metrics_with_ci(roc_auc, pr_auc, brier, f1, specificity_list, sensitivity_list, npv_list,
-                          precision_list, recall_list):
-    mean_roc_auc, roc_auc_ci = calculate_confidence_interval(roc_auc)
-    mean_pr_auc, pr_auc_ci = calculate_confidence_interval(pr_auc)
-    mean_brier, brier_ci = calculate_confidence_interval(brier)
-    mean_f2, f2_ci = calculate_confidence_interval(f1)
-    specificity_mean, specificity_ci = calculate_confidence_interval(specificity_list)
-    sensitivity_mean, sensitivity_ci = calculate_confidence_interval(sensitivity_list)
-    npv_mean, npv_ci = calculate_confidence_interval(npv_list)
-    precision_mean, precision_ci = calculate_confidence_interval(precision_list)
-    recall_mean, recall_ci = calculate_confidence_interval(recall_list)
+def print_metrics_with_ci(**metrics):
+    names = {
+        'roc_auc': 'ROC AUC Score',
+        'pr_auc': 'PR AUC Score',
+        'brier': 'Brier Score',
+        'f2': 'F2 Score',
+        'specificity_list': 'Specificity',
+        'sensitivity_list': 'Sensitivity',
+        'npv_list': 'Negative Pred Value (NPV)',
+        'precision_list': 'Precision (PPV)',
+        'recall_list': 'Recall'
+    }
 
-    print("ROC AUC Score: {:.3f} ({:.3f}, {:.3f})".format(mean_roc_auc, mean_roc_auc - roc_auc_ci,
-                                                          mean_roc_auc + roc_auc_ci))
-    print("PR AUC Score: {:.3f} ({:.3f}, {:.3f})".format(mean_pr_auc, mean_pr_auc - pr_auc_ci, mean_pr_auc + pr_auc_ci))
-    print("Brier Score: {:.3f} ({:.3f}, {:.3f})".format(mean_brier, mean_brier - brier_ci, mean_brier + brier_ci))
-    print("F2 Score: {:.3f} ({:.3f}, {:.3f})".format(mean_f2, mean_f2 - f2_ci, mean_f2 + f2_ci))
-    print("Specificity: {:.3f} ({:.3f}, {:.3f})".format(specificity_mean, specificity_mean - specificity_ci,
-                                                        specificity_mean + specificity_ci))
-    print("Sensitivity: {:.3f} ({:.3f}, {:.3f})".format(sensitivity_mean, sensitivity_mean - sensitivity_ci,
-                                                        sensitivity_mean + sensitivity_ci))
-    print("Negative Pred Value (NPV): {:.3f} ({:.3f}, {:.3f})".format(npv_mean, npv_mean - npv_ci, npv_mean + npv_ci))
-    print("Precision (PPV): {:.3f} ({:.3f}, {:.3f})".format(precision_mean, precision_mean - precision_ci,
-                                                            precision_mean + precision_ci))
-    print("Recall: {:.3f} ({:.3f}, {:.3f})".format(recall_mean, recall_mean - recall_ci, recall_mean + recall_ci))
-
+    for key, label in names.items():
+        mean, ci = calculate_confidence_interval(metrics[key])
+        print(f"{label}: {mean:.3f} ({mean - ci:.3f}, {mean + ci:.3f})")
 
 def calculate_confidence_interval(data, confidence=0.95):
-    n = len(data)
-    mean = np.mean(data)
-    std = statistics.stdev(data)
-    t_value = t.ppf((1 + confidence) / 2., n - 1)
-    margin_of_error = t_value * std
-    return mean, margin_of_error
+    mean, std, n = np.mean(data), statistics.stdev(data), len(data)
+    t_val = t.ppf((1 + confidence) / 2., n - 1)
+    return mean, t_val * std
 
 
 def plot_curves(precision_scores, recall_scores, fpr_list, tpr_list, roc_auc, pr_auc, chance, title, name):
@@ -550,7 +488,7 @@ def cv_hpo(X, y, clf, param_space=None, folds=5, n_trials=150):
                 class_weight={0: class_weights[0], 1: class_weights[1]} if weighted else None,
             )
             auroc = roc_auc_score(y_test, ft_clf.predict(format_df(X_test, y_test))['output'])
-            print("AUROC: " + auroc)
+            print("AUROC: " + str(auroc))
             roc_auc_scores.append(auroc)
 
         return statistics.mean(roc_auc_scores)
@@ -633,13 +571,15 @@ def train_and_evaluate(X_train, y_train, X_test, y_test, clf, parameters, name):
         fpr_list.append(fpr)
         tpr_list.append(tpr)
 
-    print_metrics_with_ci(roc_auc_scores, pr_auc_scores, brier_scores, f2_scores, specificity_list, sensitivity_list,
-                          npv_list, precision_list, recall_list)
+    print_metrics_with_ci(
+        roc_auc=roc_auc_scores, pr_auc=pr_auc_scores, brier=brier_scores, f2=f2_scores,
+        specificity_list=specificity_list, sensitivity_list=sensitivity_list,
+        npv_list=npv_list, precision_list=precision_list, recall_list=recall_list
+    )
 
     chance = len(y_test[y_test == 1]) / len(y_test)
 
     title = 'Non-weighted' if 'notbal' in name else 'Weighted'
-    plot_curves(precision_scores, recall_scores, fpr_list, tpr_list, roc_auc_scores, pr_auc_scores, chance, title, name)
     plot_curves(precision_scores, recall_scores, fpr_list, tpr_list, roc_auc_scores, pr_auc_scores, chance, title, name)
     plot_calibration(y_pred_proba, y_test, name)
     best_f2, f2_threshold = best_f2_threshold(y_pred_proba, y_test)
@@ -659,8 +599,10 @@ def main():
     # Load parameters and feature set from JSON files
     params = load_json('params.json')
 
-    # For hear_disease.csv use HeartDiseaseorAttack as target
-    df = prepare_data('data/titanic.csv', 'Survived')
+
+    df = prepare_data('data/first24hourdata_new.csv', 'event')
+    #df = prepare_data('data/heart_disease.csv', 'HeartDiseaseorAttack')
+    #df = prepare_data('data/titanic.csv', 'Survived')
 
     features = load_json('features.json')
     # smaller_featureset = features['feature_set'] + ['target']
@@ -694,13 +636,14 @@ def main():
 
     X_train, X_test, y_train, y_test = create_test_split(X, y, 0.2)
 
-    #best_params = cv_hpo(X_train, y_train, cb_bal_clf, cb_space, folds=4)
+    #best_params = cv_hpo(X_train, y_train, ft_notbal_clf, ft_space, folds=4, n_trials=50)
 
-    clf = train_and_evaluate(X_train, y_train, X_test, y_test, cb_bal_clf, cb_bal_params, name="cb_bal")
+    # Change model and parameters here
+    clf = train_and_evaluate(X_train, y_train, X_test, y_test, LR_bal_clf, LR_bal_params, name="LR_bal")
 
     #borutaShap_feature_selection(X_test, y_test, cb_bal_clf)
 
-    # cb_bal_clf.set_params(**best_cb_bal_params)
+    #cb_bal_clf.set_params(**cb_bal_params)
     #catboost_fs(cb_bal_clf, X_train, X_test, y_train, y_test, num_features=5)
 
     plt.show()
