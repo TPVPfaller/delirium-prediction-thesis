@@ -1,7 +1,6 @@
 import tensorflow as tf
 from sklearn.calibration import calibration_curve
 import json
-import inspect
 
 gpus = tf.config.list_physical_devices('GPU')
 if gpus:
@@ -49,7 +48,7 @@ def load_json(file_path):
         return json.load(file)
 
 
-def prepare_data(location="data/first24hourdata_new.csv", target='event', drop_right_censored=False):
+def prepare_data(location="data/first24hourdata_new.csv", target='ped_status', drop_right_censored=False):
     df = pd.read_csv(location).dropna().rename(columns={target: 'target'})
     if drop_right_censored:
         df = df[df['target'] != 0]
@@ -616,12 +615,12 @@ def main():
     feature_subset = load_json('features.json')['feature_set']
 
     # Load and prepare the dataset
-    #df = prepare_data('data/first24hourdata_new.csv', 'event')
+    df = prepare_data('data/first24hourdata_new.csv', 'ped_status', True)
     #df = prepare_data('data/heart_disease.csv', 'HeartDiseaseorAttack')
-    df = prepare_data('data/titanic.csv', 'Survived')
+    #df = prepare_data('data/titanic.csv', 'Survived', drop_right_censored=True)
 
     # Use smaller feature set (only for 24hourdata)
-    #df = df[feature_subset + ['target']]
+    df = df[feature_subset + ['target']]
 
     X, y = split_df(df)
 
@@ -664,7 +663,7 @@ def main():
     #best_params = cv_hpo(X_train, y_train, cb_notbal_clf, model_params['cb']['space'], folds=4, n_trials=50)
 
     # Train and evaluate model (change classifier, params and file name for plots here).
-    clf = train_and_evaluate(X_train, y_train, X_test, y_test, cb_bal_clf, model_params['cb']['bal_params'], 'cb_bal')
+    clf = train_and_evaluate(X_train, y_train, X_test, y_test, cb_bal_clf, model_params['cb']['fs_bal_params'], 'cb_bal')
 
     # Outputs all-relevant features for a CatBoost model. Outputs box plots for features and shadow attributes.
     #cb_bal_clf.set_params(**model_params['cb']['bal_params'])
